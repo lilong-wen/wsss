@@ -18,10 +18,15 @@ def get_args_parser():
     parser.add_argument('--device', default="cuda", type=str)
 
     #weight dict
-    parser.add_argument('--char_loss', default=1.0, type=float)
-    parser.add_argument('--bbox_loss', default=1.0, type=float)
+    parser.add_argument('--loss_ce', default=2.0, type=float)
+    parser.add_argument('--loss_ctrl_points', default=5.0, type=float)
+    parser.add_argument('--loss_texts', default=2.0, type=float)
     parser.add_argument('--clip_loss', default=1.0, type=float)
-    parser.add_argument('--match_loss', default=1.0, type=float)
+    parser.add_argument('--loss_bbox', default=5.0, type=float)
+    parser.add_argument('--loss_giou', default=2.0, type=float)
+    parser.add_argument('--loss_giou', default=2.0, type=float)
+    parser.add_argument('--aux_loss', default=True, type=bool)
+
 
     #dist
     parser.add_argument('--rank', default=0, type=int)
@@ -45,36 +50,68 @@ def get_args_parser():
     parser.add_argument('--transformer_decoder_layers', default=6, type=int)
 
     #transformer
-    parser.add_argument('--hidden_dim', default=384, type=int)
-    parser.add_argument('--dropout', default=0.1, type=float)
-    parser.add_argument('--nheads', default=8, type=int)
-    parser.add_argument('--num_queries', default=300, type=int)
-    parser.add_argument('--dim_feedforward', default=192, type=int)
-    parser.add_argument('--enc_layers', default=3, type=int)
-    parser.add_argument('--dec_layers', default=6, type=int)
-    parser.add_argument('--pre_norm', default=False, type=bool)
-    parser.add_argument('--return_intermediate_dec', default=True, type=bool)
+    # parser.add_argument('--hidden_dim', default=384, type=int)
+    # parser.add_argument('--dropout', default=0.1, type=float)
+    # parser.add_argument('--nheads', default=8, type=int)
+    # parser.add_argument('--num_queries', default=300, type=int)
+    # parser.add_argument('--dim_feedforward', default=192, type=int)
+    # parser.add_argument('--enc_layers', default=3, type=int)
+    # parser.add_argument('--dec_layers', default=6, type=int)
+    # parser.add_argument('--pre_norm', default=False, type=bool)
+    # parser.add_argument('--return_intermediate_dec', default=True, type=bool)
 
-    #Position encodign
-    parser.add_argument('--position_embedding', default='sine', type=str, choices=('sine', 'learned'))
+    # #Position encodign
+    # parser.add_argument('--position_embedding', default='sine', type=str, choices=('sine', 'learned'))
 
 
     #DETR
-    parser.add_argument('--num_classes', default=97, type=int)
-    # parser.add_argument('--num_queries', default=300, type=int)
-    parser.add_argument('--aux_loss', default=True, type=bool)
-    parser.add_argument('--num_refine_steps', default=1, type=int)
+    # parser.add_argument('--num_classes', default=97, type=int)
+    # parser.add_argument('--aux_loss', default=True, type=bool)
+    # parser.add_argument('--num_refine_steps', default=1, type=int)
+
+    # Deformable DETR
+    parser.add_argument('--d_model', default=256, type=int)
+    parser.add_argument('--num_classes', default=1, type=int)
+    parser.add_argument('--nhead', default=8, type=int)
+    parser.add_argument('--num_encoder_layers', default=6, type=int)
+    parser.add_argument('--num_decoder_layers', default=6, type=int)
+    parser.add_argument('--dim_feedforward', default=1024, type=int)
+    parser.add_argument('--dropout', default=0.1, type=float)
+    parser.add_argument('--activation', default='relu', type=str)
+    parser.add_argument('--return_intermediate_dec', default=True, type=bool)
+    parser.add_argument('--num_feature_levels', default=4, type=int)
+    parser.add_argument('--enc_n_points', default=4, type=int)
+    parser.add_argument('--dec_n_points', default=4, type=int)
+    parser.add_argument('--num_proposals', default=100, type=int)
+    parser.add_argument('--pos_embed_scale', default=6.283185307179586, type=float)
+    #TODO num of point should be at least 8, but box for now
+    parser.add_argument('--num_ctrl_points', default=4, type=int)
+    parser.add_argument('--max_text_len', default=25, type=int)
+    parser.add_argument('--voc_size', default=97, type=int)
+    parser.add_argument('--sigmoid_offset', default=True, type=bool)
 
     #Matcher
+    #TODO old matcher, delete
     parser.add_argument('--set_cost_class', default=2, type=int)
     parser.add_argument('--set_cost_bbox', default=5, type=int)
     parser.add_argument('--set_cost_giou', default=2, type=int)
     parser.add_argument('--hung_match_ratio', default=5, type=int)
+    # Matcher
+    parser.add_argument('--box_class_weight', default=2.0, type=float)
+    parser.add_argument('--box_coord_weight', default=5.0, type=float)
+    parser.add_argument('--box_GIOU_weight', default=2.0, type=float)
+    parser.add_argument('--focal_alpha', default=0.25, type=float)
+    parser.add_argument('--focal_gamma', default=2.0, type=float)
+
+    parser.add_argument('--point_class_weight', default=2.0, type=float)
+    parser.add_argument('--point_coord_weight', default=5.0, type=float)
+
 
     #criterion
     # parser.add_argument('--num_queries', default=300, type=int)
-    parser.add_argument('--focal_alpha', default=0.25, type=float)
-    parser.add_argument('--focal_gamma', default=0.5, type=float)
+    # parser.add_argument('--focal_alpha', default=0.25, type=float)
+    #TODO fact check, if 0.5 if better than 5.0
+    # parser.add_argument('--focal_gamma', default=0.5, type=float)
     parser.add_argument('--box_jitter', default=0.1, type=float)
 
     #attention2box

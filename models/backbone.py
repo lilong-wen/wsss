@@ -15,6 +15,7 @@ from torch import nn
 import math
 from utils.misc import NestedTensor
 from .position_encoding import build_position_encoding
+from adet.layers.pos_encoding import PositionalEncoding2D
 
 class Bottleneck(nn.Module):
     expansion = 4
@@ -152,12 +153,12 @@ class ResNet(nn.Module):
         x = x.type(self.conv1.weight.dtype)
         x = stem(x)
         x = self.layer1(x)
-        x = self.layer2(x)
-        x = self.layer3(x)
-        x = self.layer4(x)
-        x, att_maps = self.attnpool(x)
+        x_1 = self.layer2(x)
+        x_2 = self.layer3(x_1)
+        x_3 = self.layer4(x_2)
+        x, att_maps = self.attnpool(x_3)
 
-        return x, att_maps
+        return x, att_maps, [x_1, x_2, x_3]
 
 
 class LayerNorm(nn.LayerNorm):
@@ -411,7 +412,7 @@ class oCLIP(nn.Module):
         m_h, m_w = image_mask.shape[1:]
         image_mask = image_mask.flatten(1, 2)
 
-        encoded_image, att_maps = self.encode_image(image)
+        encoded_image, att_maps, multi_features = self.encode_image(image)
         encoded_texts = self.encode_text(text, None)
         logit_scale = self.logit_scale.exp()
 
@@ -432,7 +433,7 @@ class oCLIP(nn.Module):
 
         return {'x_logits': text_logits, 
                 'cam_cls': char_mask.unflatten(-1, (m_h, m_w)),
-                'img_feature': encoded_image, 
+                'img_feature': multi_features, 
                 'text_features': text_features}
 
 
@@ -464,23 +465,59 @@ def convert_weights(model: nn.Module):
 class Joiner(nn.Sequential):
     def __init__(self, backbone, position_embedding):
         super().__init__(backbone, position_embedding)
+        #TODO modify to avoid hard coding
+        self.feature_strides = [8, 16, 32]
+        self.num_channel = 2048
 
     def forward(self, tensor_list: NestedTensor, texts):
+
         backbone_out = self[0](tensor_list, texts)
-        x = backbone_out['img_feature']
-        fea_size = tensor_list.mask.shape[-1]
-        x = x.permute(1,2,0).unflatten(2, (fea_size, fea_size))
-        m = tensor_list.mask
-        assert m is not None
-        mask = F.interpolate(m[None].float(), size=x.shape[-2:]).to(torch.bool)[0]
-        det_x = NestedTensor(x, mask)
-        backbone_out['img_feature'] = det_x
+        tmp_vis_tensor = tensor_list.tensors
+        features = backbone_out['img_feature']
+        masks = self.mask_out_padding(
+            [features_per_level.shape for features_per_level in features],
+            tensor_list.tensors.shape[-2:],
+            tensor_list.tensors.device,
+        )
+        assert len(features) == len(masks)
+
+        out = []
         pos = []
-        # position encoding
-        pos.append(self[1](det_x).to(det_x.tensors.dtype))
+        for i, x in enumerate(features):
+            out.append(NestedTensor(x, masks[i]))
+            # position encoding
+            pos.append(self[1](out[i]).to(x.dtype))
 
-        return backbone_out, pos
+        backbone_out['img_feature'] = out
 
+        return backbone_out, pos        
+        # fea_size = tensor_list.mask.shape[-1]
+        # x = x.permute(1,2,0).unflatten(2, (fea_size, fea_size))
+        # m = tensor_list.mask
+        # assert m is not None
+        # mask = F.interpolate(m[None].float(), size=x.shape[-2:]).to(torch.bool)[0]
+        # det_x = NestedTensor(x, mask)
+        # backbone_out['img_feature'] = det_x
+        # pos = []
+        # # position encoding
+        # pos.append(self[1](det_x).to(det_x.tensors.dtype))
+
+        # return backbone_out, pos
+
+    def mask_out_padding(self, feature_shapes, image_sizes, device):
+        masks = []
+        assert len(feature_shapes) == len(self.feature_strides)
+        for idx, shape in enumerate(feature_shapes):
+            N, _, H, W = shape
+            masks_per_feature_level = torch.ones((N, H, W), dtype=torch.bool, device=device)
+            # for img_idx, (h, w) in enumerate(image_sizes):
+                # masks_per_feature_level[
+                    # img_idx,
+                    # : int(np.ceil(float(h) / self.feature_strides[idx])),
+                    # : int(np.ceil(float(w) / self.feature_strides[idx])),
+                # ] = 0
+            masks.append(masks_per_feature_level)
+        return masks
 
 def build_backbone(args):
 
@@ -497,7 +534,7 @@ def build_backbone(args):
         args.transformer_decoder_layers,
     )
 
-    position_embedding = build_position_encoding(args)
-    model = Joiner(backbone, position_embedding)
+    # position_embedding = build_position_encoding(args)
+    model = Joiner(backbone, PositionalEncoding2D(args.d_model//2, normalize=True))
 
     return model

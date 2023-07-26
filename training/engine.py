@@ -22,13 +22,12 @@ def train_one_epoch(model, criterion, data, optimizer, device, eopch, postproces
         targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
 
         outputs = model(images, texts)
-        pseudo_label = get_pseudo_label_multi_boxes(outputs[0], images, targets, args)
+        pseudo_label = get_pseudo_label_multi_boxes(outputs, images, targets, args)
 
         for t, p in zip(targets, pseudo_label):
             t.update(p)
 
-        pseudo_label_refine = get_refinements_pseudo_label(outputs, 
-                                                           targets, 
-                                                           postprocessors, 
-                                                           args)
-        loss_dict = criterion(outputs[0], targets)
+        #TODO lable refinement add here
+        # 
+
+        loss_dict = criterion(outputs, targets)

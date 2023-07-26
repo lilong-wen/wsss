@@ -93,15 +93,12 @@ def get_pseudo_label_multi_boxes(outputs, samples, targets, args):
 
     device = samples.tensors.get_device()
     cams = outputs['cam_cls']
-    cls_logits = outputs['x_logits']
     max_len = targets[0]['text'].shape[0]
     Pseudo_labels = []
     for batch_i in range(cams.shape[0]):
         image_size_i = samples.tensors.shape[-2:]
         # image_label_i = targets[batch_i]['text'].data.cpu().numpy().reshape(-1)
         image_label_i = targets[batch_i]['text'].data.cpu().numpy()
-        image_score_i = cls_logits[batch_i].sigmoid().data.cpu().numpy().reshape(-1)
-        image_score_i = cls_logits[batch_i].reshape(-1)
         estimated_bbox = []
         estimated_class= []
         for class_i in range(max_len):
