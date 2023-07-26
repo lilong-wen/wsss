@@ -78,7 +78,7 @@ class CsvDataset(Dataset):
 
         # return images, texts.long(), masked_chars.long(), image_masks
         #TODO change the second text to unmasked text
-        return images, texts_f.long(), {"text": texts.long(), "chars": masked_chars.long(), \
+        return images, texts_f.long(), {"texts_pad": texts.long(), "chars": masked_chars.long(), \
                                         'ori_size': torch.tensor(ori_images.size),
                                         'size': torch.tensor(images.shape[1:])}
        

@@ -31,3 +31,5 @@ def train_one_epoch(model, criterion, data, optimizer, device, eopch, postproces
         # 
 
         loss_dict = criterion(outputs, targets)
+
+        print('test end here')

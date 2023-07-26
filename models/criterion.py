@@ -311,7 +311,8 @@ class SetCriterion_with_text(nn.Module):
         2) we supervise each pair of matched ground-truth / prediction (supervise class and box)
     """
 
-    def __init__(self, num_classes, enc_matcher, dec_matcher, weight_dict, enc_losses, dec_losses, num_ctrl_points, focal_alpha=0.25, focal_gamma=2.0):
+    def __init__(self, num_classes, enc_matcher, dec_matcher, weight_dict, enc_losses, \
+                dec_losses, num_ctrl_points, box_jitter, focal_alpha=0.25, focal_gamma=2.0):
         """ Create the criterion.
         Parameters:
             num_classes: number of object categories, omitting the special no-object category
@@ -328,6 +329,7 @@ class SetCriterion_with_text(nn.Module):
         self.enc_losses = enc_losses
         self.dec_losses = dec_losses
         self.focal_alpha = focal_alpha
+        self.box_jitter = box_jitter
         self.focal_gamma = focal_gamma
         self.num_ctrl_points = num_ctrl_points
 
@@ -420,6 +422,20 @@ class SetCriterion_with_text(nn.Module):
 
         losses = {'loss_ctrl_points': loss_ctrl_points / num_inst}
         return losses
+
+    def get_jittered_box(self, box, box_jitter_x, box_jitter_y, box_jitter, cnt_jitter):
+        offset_cx = torch.empty((1000, 1), dtype=box.dtype, device=box.device).uniform_(box_jitter_x[0], box_jitter_x[1]) * box[0, 2]
+        offset_cy = torch.empty((1000, 1), dtype=box.dtype, device=box.device).uniform_(box_jitter_y[0], box_jitter_y[1]) * box[0, 3]
+        offset_w = torch.empty((1000, 1), dtype=box.dtype, device=box.device).uniform_(-box_jitter, box_jitter) * box[0, 2]
+        offset_h = torch.empty((1000, 1), dtype=box.dtype, device=box.device).uniform_(-box_jitter, box_jitter) * box[0, 3]
+        offset = torch.cat([offset_cx, offset_cy, offset_w, offset_h], dim=1)
+        offset_box = box + offset
+        iou, _ = box_ops.box_iou(box_ops.box_cxcywh_to_xyxy(offset_box), box_ops.box_cxcywh_to_xyxy(box))
+        keep_idx = torch.where(iou.reshape(-1) > 0.7)[0]
+        min_keep_cnt = cnt_jitter if cnt_jitter < keep_idx.numel() else keep_idx.numel()
+        box_repeat = box.repeat(cnt_jitter, 1)
+        box_repeat[:min_keep_cnt] = offset_box[keep_idx[:min_keep_cnt]]
+        return box_repeat
 
     @staticmethod
     def _get_src_permutation_idx(indices):

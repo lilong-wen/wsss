@@ -24,8 +24,8 @@ def get_args_parser():
     parser.add_argument('--clip_loss', default=1.0, type=float)
     parser.add_argument('--loss_bbox', default=5.0, type=float)
     parser.add_argument('--loss_giou', default=2.0, type=float)
-    parser.add_argument('--loss_giou', default=2.0, type=float)
     parser.add_argument('--aux_loss', default=True, type=bool)
+    parser.add_argument('--box_jitter', default=0.1, type=float)
 
 
     #dist
@@ -99,7 +99,7 @@ def get_args_parser():
     # Matcher
     parser.add_argument('--box_class_weight', default=2.0, type=float)
     parser.add_argument('--box_coord_weight', default=5.0, type=float)
-    parser.add_argument('--box_GIOU_weight', default=2.0, type=float)
+    parser.add_argument('--box_giou_weight', default=2.0, type=float)
     parser.add_argument('--focal_alpha', default=0.25, type=float)
     parser.add_argument('--focal_gamma', default=2.0, type=float)
 
@@ -112,7 +112,6 @@ def get_args_parser():
     # parser.add_argument('--focal_alpha', default=0.25, type=float)
     #TODO fact check, if 0.5 if better than 5.0
     # parser.add_argument('--focal_gamma', default=0.5, type=float)
-    parser.add_argument('--box_jitter', default=0.1, type=float)
 
     #attention2box
     parser.add_argument('--cam_thr', default=0.2, type=float)

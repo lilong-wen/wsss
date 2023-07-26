@@ -48,7 +48,7 @@ def build_model(args):
                 {k + f'_{i}': v for k, v in weight_dict.items()}
             )
         aux_weight_dict.update(
-            {k + f'_enc': v for k,v in enc_weight_dict.item()}
+            {k + f'_enc': v for k,v in enc_weight_dict.items()}
         )
         weight_dict.update(aux_weight_dict)
 
@@ -73,6 +73,7 @@ def build_model(args):
         enc_losses=enc_losses, 
         dec_losses=dec_losses, 
         num_ctrl_points=args.num_ctrl_points, 
+        box_jitter=args.box_jitter,
         focal_alpha=0.25, 
         focal_gamma=2.0
 
