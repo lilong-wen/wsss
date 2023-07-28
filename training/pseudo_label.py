@@ -92,7 +92,7 @@ def get_pseudo_label_multi_boxes(outputs, samples, targets, args):
         return boxes
 
     device = samples.tensors.get_device()
-    cams = outputs['cam_cls']
+    cams = outputs['cam_word']
     max_len = targets[0]['texts_pad'].shape[0]
     Pseudo_labels = []
     for batch_i in range(cams.shape[0]):
@@ -120,7 +120,7 @@ def get_pseudo_label_multi_boxes(outputs, samples, targets, args):
                         estimated_class.append(image_label_i[class_i])
 
         estimated_bbox = torch.cat(estimated_bbox, dim=0).to(device)
-        estimated_label = torch.zeros((estimated_bbox.shape[0], 1)).squeeze(-1)
+        estimated_label = torch.zeros((estimated_bbox.shape[0], 1), dtype=torch.int64).squeeze(-1).to(device)
         estimated_class= torch.tensor(estimated_class).to(device)
 
         estimated_bbox = normalize_bbox(estimated_bbox, image_size_i)

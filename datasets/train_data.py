@@ -63,24 +63,57 @@ class CsvDataset(Dataset):
 
         all_texts = self.captions[idx].split(' ')
         texts = torch.zeros((self.max_len, self.word_len))
+        texts_start = torch.zeros((self.max_len, self.word_len))
+        texts_end = torch.zeros((self.max_len, self.word_len))
         texts_f = torch.zeros((self.max_len, self.word_len))
         masked_chars = torch.zeros(self.max_len)
+        masked_chars_start = torch.zeros(self.max_len)
+        masked_chars_end = torch.zeros(self.max_len)
         for i in range(min(len(all_texts), self.max_len)):
             t = self.tokenize(all_texts[i])
+            t_start = self.tokenize(all_texts[i])
+            t_end = self.tokenize(all_texts[i])
             texts_f[i] += t
-            rand_idx = random.randint(0, min(len(all_texts[i]), self.word_len) - 1)
+            max_rand = min(len(all_texts[i]), self.word_len)
+            rand_list = list(range(0, max_rand))
+            # rand_idx = random.randint(0, min(len(all_texts[i]), self.word_len) - 1)
+            rand_idx = random.choice(rand_list)
             masked_chars[i] = t[rand_idx].clone()
             t[rand_idx] = self.idx_mask
             texts[i] += t
+
+            # rand_idx_start = random.choice([item for item in rand_list if item != rand_idx])
+            rand_idx_start = rand_idx
+            rand_idx_end = rand_idx
+
+            if max_rand < 2:
+                continue
+            rand_idx_start = 0 if rand_idx!=0 else \
+                random.choice([item for item in rand_list if item != rand_idx])
+            masked_chars_start[i] = t_start[rand_idx_start].clone()
+            t_start[rand_idx_start] = self.idx_mask
+            texts_start[i] += t_start
+
+            if max_rand > 2:
+                rand_idx_end = max_rand-1 if rand_idx!=(max_rand-1) and rand_idx_start!=(max_rand-1) else \
+                    random.choice([item for item in rand_list if item != rand_idx and item!=rand_idx_start])
+            else:
+                rand_idx_end = rand_idx
+            masked_chars_end[i] = t_end[rand_idx_end].clone()
+            t_end[rand_idx_end] = self.idx_mask
+            texts_end[i] += t_end
+
 
         # image masks can be used to mask out the padding regions during training
         image_masks = torch.zeros((self.image_resolution // 32, self.image_resolution // 32), dtype=torch.bool)
 
         # return images, texts.long(), masked_chars.long(), image_masks
         #TODO change the second text to unmasked text
-        return images, texts_f.long(), {"texts_pad": texts.long(), "chars": masked_chars.long(), \
-                                        'ori_size': torch.tensor(ori_images.size),
-                                        'size': torch.tensor(images.shape[1:])}
+        return images, [texts.long(), texts_start.long(), texts_end.long()], \
+            {"texts_pad": texts_f.long(),
+             "chars": masked_chars.long(),
+             "ori_size": torch.tensor(ori_images.size),
+             "size": torch.tensor(images.shape[1:])}
        
 @dataclass
 class DataInfo:
@@ -135,3 +168,33 @@ def get_train_data(args, preprocess_fns):
     data = get_csv_dataset(args, preprocess_fn)
     
     return data
+
+
+
+'''
+    def __getitem__(self, idx):
+        ori_images = Image.open(str(self.images[idx]))
+
+        images = self.transforms(ori_images)
+
+        all_texts = self.captions[idx].split(' ')
+        texts = torch.zeros((self.max_len, self.word_len))
+        texts_f = torch.zeros((self.max_len, self.word_len))
+        masked_chars = torch.zeros(self.max_len)
+        for i in range(min(len(all_texts), self.max_len)):
+            t = self.tokenize(all_texts[i])
+            texts_f[i] += t
+            rand_idx = random.randint(0, min(len(all_texts[i]), self.word_len) - 1)
+            masked_chars[i] = t[rand_idx].clone()
+            t[rand_idx] = self.idx_mask
+            texts[i] += t
+
+        # image masks can be used to mask out the padding regions during training
+        image_masks = torch.zeros((self.image_resolution // 32, self.image_resolution // 32), dtype=torch.bool)
+
+        # return images, texts.long(), masked_chars.long(), image_masks
+        #TODO change the second text to unmasked text
+        return images, texts_f.long(), {"texts_pad": texts.long(), "chars": masked_chars.long(), \
+                                        'ori_size': torch.tensor(ori_images.size),
+                                        'size': torch.tensor(images.shape[1:])}
+'''

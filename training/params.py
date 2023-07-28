@@ -13,6 +13,7 @@ def get_args_parser():
     parser.add_argument('--num_workers', default=4, type=int)
     parser.add_argument('--end_epochs', default=10, type=int)
     parser.add_argument('--num_refines', default=1, type=int)
+    parser.add_argument('--clip_max_norm', default=0.1, type=float)
 
     parser.add_argument('--seed', default=75, type=int)
     parser.add_argument('--device', default="cuda", type=str)
@@ -38,7 +39,7 @@ def get_args_parser():
 
 
     # backbone
-    parser.add_argument('--vocab_size', default=97, type=int)
+    parser.add_argument('--vocab_size', default=96, type=int)
     parser.add_argument('--embed_dim', default=384, type=int)
     parser.add_argument('--image_resolution', default=512, type=int)
     parser.add_argument('--vision_layers', nargs='+', default=[3, 4, 6, 3], type=int)
@@ -87,7 +88,7 @@ def get_args_parser():
     #TODO num of point should be at least 8, but box for now
     parser.add_argument('--num_ctrl_points', default=4, type=int)
     parser.add_argument('--max_text_len', default=25, type=int)
-    parser.add_argument('--voc_size', default=97, type=int)
+    parser.add_argument('--voc_size', default=96, type=int)
     parser.add_argument('--sigmoid_offset', default=True, type=bool)
 
     #Matcher
@@ -117,6 +118,9 @@ def get_args_parser():
     parser.add_argument('--cam_thr', default=0.2, type=float)
     parser.add_argument('--multi_box_ratio', default=0.5, type=float)
 
+    #TODO change this parameter, not safe
+    #hack parameter, may cause some trouble
+    parser.add_argument('--idx_mask', default=95, type=int)
 
 
     parser.add_argument('--train_file', nargs='+', default=['./data/SynthText/sample.csv'], type=str)

@@ -32,30 +32,35 @@ def build_model(args):
     box_matcher, point_matcher = build_matcher(args)
 
     #TODO change keys
-    weight_dict = {'loss_ce': args.loss_ce,
-                   'loss_ctrl_points': args.loss_ctrl_points,
-                   'loss_texts': args.loss_texts,
-                   }
-    enc_weight_dict = {
+    # weight_dict = {'loss_ce': args.loss_ce,
+    #                # 'loss_ctrl_points': args.loss_ctrl_points,
+    #                'loss_texts': args.loss_texts,
+    #                }
+    weight_dict = {}
+    
+    dec_weight_dict = {
         'loss_bbox': args.loss_bbox,
         'loss_giou': args.loss_giou,
+        'loss_texts': args.loss_texts,
         'loss_ce': args.loss_ce
     }
     if args.aux_loss:
         aux_weight_dict = {}
         for i in range(args.num_decoder_layers - 1):
             aux_weight_dict.update(
-                {k + f'_{i}': v for k, v in weight_dict.items()}
+                {k + f'_{i}': v for k, v in dec_weight_dict.items()}
             )
         aux_weight_dict.update(
-            {k + f'_enc': v for k,v in enc_weight_dict.items()}
+            # {k + f'_dec': v for k,v in dec_weight_dict.items()}
+            {k: v for k,v in dec_weight_dict.items()}
         )
         weight_dict.update(aux_weight_dict)
 
     #TODO change the loss
     losses = ['char', 'clip', 'boxes', 'match']
     enc_losses = ['labels', 'boxes']
-    dec_losses = ['labels', 'ctrl_points', 'texts']
+    # dec_losses = ['labels', 'ctrl_points', 'texts']
+    dec_losses = ['labels', 'boxes', 'texts']
 
 
     # criterion = SetCriterion(num_classes=args.num_classes,

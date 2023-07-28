@@ -216,13 +216,31 @@ def inverse_sigmoid(x, eps=1e-5):
 
 @torch.no_grad()
 def accuracy(output, target, topk=(1,)):
+    # """Computes the precision@k for the specified values of k"""
+    # if target.numel() == 0:
+    #     return [torch.zeros([], device=output.device)]
+    # maxk = max(topk)
+    # batch_size = target.size(0)
+# 
+    # _, pred = output.topk(maxk, 1, True, True)
+    # pred = pred.t()
+    # correct = pred.eq(target.view(1, -1).expand_as(pred))
+# 
+    # res = []
+    # for k in topk:
+    #     correct_k = correct[:k].view(-1).float().sum(0)
+    #     res.append(correct_k.mul_(100.0 / batch_size))
+    # return res
     """Computes the precision@k for the specified values of k"""
     if target.numel() == 0:
         return [torch.zeros([], device=output.device)]
+    if target.ndim == 2:
+        assert output.ndim == 3
+        output = output.mean(1)
     maxk = max(topk)
     batch_size = target.size(0)
 
-    _, pred = output.topk(maxk, 1, True, True)
+    _, pred = output.topk(maxk, -1)
     pred = pred.t()
     correct = pred.eq(target.view(1, -1).expand_as(pred))
 
@@ -282,7 +300,13 @@ def save_on_master(*args, **kwargs):
 def collate_fn(batch):
     batch = list(zip(*batch))
     batch[0] = nested_tensor_from_tensor_list_easy(batch[0])
-    batch[1] = torch.stack(batch[1])
+    # batch[1] = torch.stack(batch[1])
+    text_r = [batch_item[0] for batch_item in batch[1]]
+    text_s = [batch_item[1] for batch_item in batch[1]]
+    text_e = [batch_item[2] for batch_item in batch[1]]
+    batch[1] = torch.vstack([torch.stack(text_r),
+                            torch.stack(text_s), 
+                            torch.stack(text_e)])
     return tuple(batch)
 
 def is_dist_avail_and_initialized():
@@ -295,7 +319,7 @@ def is_dist_avail_and_initialized():
 class SmoothedValue(object):
     def __init__(self, window_size=20, fmt=None):
         if fmt is None:
-            fmt = "{median:.4f) (global_avg:.4f)"
+            fmt = "{median:.4f} ({global_avg:.4f})"
         self.deque = deque(maxlen=window_size)
         self.total = 0.0
         self.count = 0
@@ -347,7 +371,31 @@ class SmoothedValue(object):
         )
     
 
-        
+def reduce_dict(input_dict, average=True):
+    """
+    Args:
+        input_dict (dict): all the values will be reduced
+        average (bool): whether to do average or sum
+    Reduce the values in the dictionary from all processes so that all processes
+    have the averaged results. Returns a dict with the same fields as
+    input_dict, after reduction.
+    """
+    world_size = get_world_size()
+    if world_size < 2:
+        return input_dict
+    with torch.no_grad():
+        names = []
+        values = []
+        # sort the keys so that they are consistent across processes
+        for k in sorted(input_dict.keys()):
+            names.append(k)
+            values.append(input_dict[k])
+        values = torch.stack(values, dim=0)
+        dist.all_reduce(values)
+        if average:
+            values /= world_size
+        reduced_dict = {k: v for k, v in zip(names, values)}
+    return reduced_dict        
 
 class MetricLogger(object):
     def __init__(self, delimiter="\t"):

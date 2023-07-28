@@ -279,6 +279,9 @@ class oCLIP(nn.Module):
 
         self.context_length = context_length
 
+        #TODO change this into config
+        self.idx_masks = 95
+
         vision_heads = vision_width * 32 // 64
 
         self.visual = ResNet(
@@ -304,8 +307,8 @@ class oCLIP(nn.Module):
             heads=transformer_heads,
         )
 
-        self.vocab_size = vocab_size
-        self.token_embedding = nn.Embedding(vocab_size, transformer_width)
+        self.vocab_size = vocab_size + 1
+        self.token_embedding = nn.Embedding(self.vocab_size, transformer_width)
         self.positional_embedding = nn.Parameter(torch.empty(self.context_length, transformer_width))
     
         self.ln_final = LayerNorm(transformer_width)
@@ -313,7 +316,7 @@ class oCLIP(nn.Module):
         self.logit_scale = nn.Parameter(torch.ones([]) * np.log(1 / 0.07))
 
         self.ln_final_decoder = LayerNorm(embed_dim)
-        self.text_class = nn.Linear(embed_dim, vocab_size)
+        self.text_class = nn.Linear(embed_dim, self.vocab_size)
         self.image_pos = nn.Parameter(torch.randn((image_resolution // 32) ** 2, embed_dim) / embed_dim ** 0.5)
 
         self.initialize_parameters()
@@ -406,10 +409,21 @@ class oCLIP(nn.Module):
         x = self.ln_final_decoder(x).type(self.dtype)
         return x, m
 
+    #TODO modify later
+    # def att_text_line_to_image(self, encoded_image, encoded_text, image_mask):
+    #     x = encoded_text.permute(1, 0, 2)  # NLD -> LND
+    #     tmp = self.transformer_decoder([x, encoded_image + self.image_pos[:, None, :].to(encoded_image.dtype), encoded_image, image_mask])
+    #     x = tmp[0]
+    #     m = tmp[4]
+    #     x = x.permute(1, 0, 2)  # LND -> NLD
+    #     x = self.ln_final_decoder(x).type(self.dtype)
+    #     return x, m
+
     def forward(self, tensor_list, text):
 
         image, image_mask = tensor_list.decompose()
-        m_h, m_w = image_mask.shape[1:]
+        # tmp_vis_image_mask = image_mask[0].reshape(16, 61)
+        m_c, m_h, m_w = image_mask.shape
         image_mask = image_mask.flatten(1, 2)
 
         encoded_image, att_maps, multi_features = self.encode_image(image)
@@ -420,11 +434,13 @@ class oCLIP(nn.Module):
         encoded_image = encoded_image[1:]
 
         text_features = torch.mean(encoded_texts, dim=1)
-        image_features = image_features / image_features.norm(dim=-1, keepdim=True)
-        text_features = text_features / text_features.norm(dim=-1, keepdim=True)
 
-        text_image_enc, char_mask = self.att_text_to_image(encoded_image, encoded_texts, image_mask)
-        text_logits = self.text_class(text_image_enc)
+        text_image_enc, char_mask = self.att_text_to_image(encoded_image.repeat(1,3,1), encoded_texts, image_mask.repeat(3,1))
+        char_mask_r, char_mask_s, char_mask_e = torch.split(char_mask, m_c)
+        char_mask_w = torch.max(torch.max(char_mask_r, char_mask_s), char_mask_e)
+
+        text_image_enc_r, text_image_enc_s, text_image_e = torch.split(text_image_enc, m_c)
+        text_logits = self.text_class(text_image_enc_r)
 
         # if self.training:
             # return image_features, text_features, text_logits, logit_scale
@@ -432,7 +448,8 @@ class oCLIP(nn.Module):
             # return image_features, text_features, text_logits, att_maps, char_mask, logit_scale    
 
         return {'x_logits': text_logits, 
-                'cam_cls': char_mask.unflatten(-1, (m_h, m_w)),
+                'cam_cls': char_mask_r.unflatten(-1, (m_h, m_w)),
+                'cam_word': char_mask_w.unflatten(-1, (m_h, m_w)),
                 'img_feature': multi_features, 
                 'text_features': text_features}
 

@@ -197,10 +197,12 @@ class CtrlPointHungarianMatcher(nn.Module):
             # We flatten to compute the cost matrices in a batch
             out_prob = outputs["pred_logits"].flatten(0, 1).sigmoid()
             # [batch_size, n_queries, n_points, 2] --> [batch_size * num_queries, n_points * 2]
-            out_pts = outputs["pred_ctrl_points"].flatten(0, 1).flatten(-2)
+            out_pts = outputs["pred_boxes"].flatten(0, 1).flatten(-2)
 
             # Also concat the target labels and boxes
-            tgt_pts = torch.cat([v["ctrl_points"] for v in targets]).flatten(-2)
+            #TODO change the ctrl_points to boxes, since the enc output seems not working
+            # tgt_pts = torch.cat([v["boxes"] for v in targets]).flatten(-2)
+            tgt_pts = torch.cat([v["boxes"] for v in targets]).flatten(-1)
             neg_cost_class = (1 - self.alpha) * (out_prob ** self.gamma) * \
                 (-(1 - out_prob + 1e-8).log())
             pos_cost_class = self.alpha * \
@@ -213,7 +215,7 @@ class CtrlPointHungarianMatcher(nn.Module):
             C = self.class_weight * cost_class + self.coord_weight * cost_kpts
             C = C.view(bs, num_queries, -1).cpu()
 
-            sizes = [len(v["ctrl_points"]) for v in targets]
+            sizes = [len(v["boxes"]) for v in targets]
             indices = [linear_sum_assignment(
                 c[i]) for i, c in enumerate(C.split(sizes, -1))]
             return [(torch.as_tensor(i, dtype=torch.int64), torch.as_tensor(j, dtype=torch.int64)) for i, j in indices]
@@ -267,9 +269,9 @@ class BoxHungarianMatcher(nn.Module):
             bs, num_queries = outputs["pred_logits"].shape[:2]
 
             # We flatten to compute the cost matrices in a batch
-            out_prob = outputs["pred_logits"].flatten(0, 1).sigmoid()
+            out_prob = outputs["pred_logits"].flatten(0, 1).sigmoid().squeeze(-1)
             out_bbox = outputs["pred_boxes"].flatten(
-                0, 1)  # [batch_size * num_queries, 4]
+                0, 1).squeeze(-1)  # [batch_size * num_queries, 4]
 
             # Also concat the target labels and boxes
             tgt_ids = torch.cat([v["labels"] for v in targets])
@@ -306,12 +308,12 @@ def build_matcher(args):
     #                         cost_giou=args.set_cost_giou, \
     #                         match_ratio=args.hung_match_ratio)
 
-    return BoxHungarianMatcher(class_weight=args.box_class_weight,
+    return None, BoxHungarianMatcher(class_weight=args.box_class_weight,
                                coord_weight=args.box_coord_weight,
                                giou_weight=args.box_giou_weight,
                                focal_alpha=args.focal_alpha,
-                               focal_gamma=args.focal_gamma), \
-        CtrlPointHungarianMatcher(class_weight=args.point_class_weight,
-                                 coord_weight=args.point_coord_weight,
-                                 focal_alpha=args.focal_alpha,
-                                 focal_gamma=args.focal_gamma)
+                               focal_gamma=args.focal_gamma)
+        # CtrlPointHungarianMatcher(class_weight=args.point_class_weight,
+        #                          coord_weight=args.point_coord_weight,
+        #                          focal_alpha=args.focal_alpha,
+        #                          focal_gamma=args.focal_gamma)

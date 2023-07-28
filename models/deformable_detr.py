@@ -197,7 +197,7 @@ class WSSS(nn.Module):
         outputs_text = torch.stack(outputs_texts)
 
         out = {'pred_logits': outputs_class[-1],
-               'pred_ctrl_points': outputs_coord[-1],
+               'pred_boxes': outputs_coord[-1],
                'pred_texts': outputs_text[-1], **features_out}
         if self.aux_loss:
             out['aux_outputs'] = self._set_aux_loss(
@@ -213,5 +213,5 @@ class WSSS(nn.Module):
         # this is a workaround to make torchscript happy, as torchscript
         # doesn't support dictionary with non-homogeneous values, such
         # as a dict having both a Tensor and a list.
-        return [{'pred_logits': a, 'pred_ctrl_points': b, 'pred_texts': c}
+        return [{'pred_logits': a, 'pred_boxes': b, 'pred_texts': c}
                 for a, b, c in zip(outputs_class[:-1], outputs_coord[:-1], outputs_text[:-1])]

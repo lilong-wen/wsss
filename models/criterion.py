@@ -323,7 +323,7 @@ class SetCriterion_with_text(nn.Module):
         """
         super().__init__()
         self.num_classes = num_classes
-        self.enc_matcher = enc_matcher
+        # self.enc_matcher = enc_matcher
         self.dec_matcher = dec_matcher
         self.weight_dict = weight_dict
         self.enc_losses = enc_losses
@@ -332,8 +332,10 @@ class SetCriterion_with_text(nn.Module):
         self.box_jitter = box_jitter
         self.focal_gamma = focal_gamma
         self.num_ctrl_points = num_ctrl_points
+        #TODO change hung_match_ratio 
+        self.hung_match_ratio = 5
 
-    def loss_labels(self, outputs, targets, indices, num_inst, log=False):
+    def loss_labels(self, outputs, targets, indices, num_inst, log=True):
         """Classification loss (NLL)
         targets dicts must contain the key "labels" containing a tensor of dim [nb_target_boxes]
         """
@@ -387,7 +389,8 @@ class SetCriterion_with_text(nn.Module):
         """
         assert 'pred_boxes' in outputs
         idx = self._get_src_permutation_idx(indices)
-        src_boxes = outputs['pred_boxes'][idx]
+        src_boxes = outputs['pred_boxes'][idx].squeeze(-1)
+        #src_boxes = outputs['pred_boxes'][idx]
         target_boxes = torch.cat([t['boxes'][i]
                                   for t, (_, i) in zip(targets, indices)], dim=0)
 
@@ -406,8 +409,8 @@ class SetCriterion_with_text(nn.Module):
         assert 'pred_texts' in outputs
         idx = self._get_src_permutation_idx(indices)
         src_texts = outputs['pred_texts'][idx]
-        target_ctrl_points = torch.cat([t['texts'][i] for t, (_, i) in zip(targets, indices)], dim=0)
-        return {'loss_texts': F.cross_entropy(src_texts.transpose(1, 2), target_ctrl_points.long())}
+        target_texts = torch.cat([t['texts'][i] for t, (_, i) in zip(targets, indices)], dim=0)
+        return {'loss_texts': F.cross_entropy(src_texts.transpose(1, 2), target_texts.long())}
 
 
     def loss_ctrl_points(self, outputs, targets, indices, num_inst):
@@ -415,8 +418,8 @@ class SetCriterion_with_text(nn.Module):
         """
         assert 'pred_ctrl_points' in outputs
         idx = self._get_src_permutation_idx(indices)
-        src_ctrl_points = outputs['pred_ctrl_points'][idx]
-        target_ctrl_points = torch.cat([t['ctrl_points'][i] for t, (_, i) in zip(targets, indices)], dim=0)
+        src_ctrl_points = outputs['pred_boxes'][idx]
+        target_ctrl_points = torch.cat([t['boxes'][i] for t, (_, i) in zip(targets, indices)], dim=0)
 
         loss_ctrl_points = F.l1_loss(src_ctrl_points, target_ctrl_points, reduction='sum')
 
@@ -497,12 +500,14 @@ class SetCriterion_with_text(nn.Module):
                 targets_cp[i]['labels'] = targets_cp[i]['labels'].unsqueeze(dim=1).repeat(1,self.hung_match_ratio).reshape(-1,)
                 if 'scores' in targets_cp[i]:
                     targets_cp[i]['scores'] = targets_cp[i]['scores'].unsqueeze(dim=1).repeat(1,self.hung_match_ratio).reshape(-1,)
+                if 'texts' in targets_cp[i]:
+                    targets_cp[i]['texts'] = targets_cp[i]['texts'].unsqueeze(dim=1).repeat(1,self.hung_match_ratio, 1).flatten(0,1)
 
         #TODO change matcher to partial match
         indices = self.dec_matcher(outputs_without_aux, targets_cp)
 
         # Compute the average number of target boxes accross all nodes, for normalization purposes
-        num_inst = sum(len(t['labels']) for t in targets)
+        num_inst = sum(len(t['labels']) for t in targets_cp)
         num_inst = torch.as_tensor(
             [num_inst], dtype=torch.float, device=next(iter(outputs.values())).device)
         if is_dist_avail_and_initialized():
@@ -513,34 +518,35 @@ class SetCriterion_with_text(nn.Module):
         losses = {}
         for loss in self.dec_losses:
             kwargs = {}
-            losses.update(self.get_loss(loss, outputs, targets,
+            losses.update(self.get_loss(loss, outputs, targets_cp,
                                         indices, num_inst, **kwargs))
 
         # In case of auxiliary losses, we repeat this process with the output of each intermediate layer.
         if 'aux_outputs' in outputs:
             for i, aux_outputs in enumerate(outputs['aux_outputs']):
-                indices = self.dec_matcher(aux_outputs, targets)
+                indices = self.dec_matcher(aux_outputs, targets_cp)
                 for loss in self.dec_losses:
                     kwargs = {}
                     if loss == 'labels':
                         # Logging is enabled only for the last layer
                         kwargs['log'] = False
                     l_dict = self.get_loss(
-                        loss, aux_outputs, targets, indices, num_inst, **kwargs)
+                        loss, aux_outputs, targets_cp, indices, num_inst, **kwargs)
                     l_dict = {k + f'_{i}': v for k, v in l_dict.items()}
                     losses.update(l_dict)
 
-        if 'enc_outputs' in outputs:
-            enc_outputs = outputs['enc_outputs']
-            indices = self.enc_matcher(enc_outputs, targets)
-            for loss in self.enc_losses:
-                kwargs = {}
-                if loss == 'labels':
-                    kwargs['log'] = False
-                l_dict = self.get_loss(
-                    loss, enc_outputs, targets, indices, num_inst, **kwargs)
-                l_dict = {k + f'_enc': v for k, v in l_dict.items()}
-                losses.update(l_dict)
+        #TODO enc_outputs may not working, modify the encoder output later
+        # if 'enc_outputs' in outputs:
+        #     enc_outputs = outputs['enc_outputs']
+        #     indices = self.enc_matcher(enc_outputs, targets)
+        #     for loss in self.enc_losses:
+        #         kwargs = {}
+        #         if loss == 'labels':
+        #             kwargs['log'] = False
+        #         l_dict = self.get_loss(
+        #             loss, enc_outputs, targets, indices, num_inst, **kwargs)
+        #         l_dict = {k + f'_enc': v for k, v in l_dict.items()}
+        #         losses.update(l_dict)
 
         return losses
 
