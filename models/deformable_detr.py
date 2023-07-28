@@ -203,7 +203,7 @@ class WSSS(nn.Module):
             out['aux_outputs'] = self._set_aux_loss(
                 outputs_class, outputs_coord, outputs_text)
 
-        enc_outputs_coord = enc_outputs_coord_unact.sigmoid()
+        enc_outputs_coord = enc_outputs_coord_unact.sigmoid().unsqueeze(-1)
         out['enc_outputs'] = {
             'pred_logits': enc_outputs_class, 'pred_boxes': enc_outputs_coord}
         return out

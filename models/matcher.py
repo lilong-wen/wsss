@@ -269,7 +269,7 @@ class BoxHungarianMatcher(nn.Module):
             bs, num_queries = outputs["pred_logits"].shape[:2]
 
             # We flatten to compute the cost matrices in a batch
-            out_prob = outputs["pred_logits"].flatten(0, 1).sigmoid().squeeze(-1)
+            out_prob = outputs["pred_logits"].flatten(0, 1).sigmoid()
             out_bbox = outputs["pred_boxes"].flatten(
                 0, 1).squeeze(-1)  # [batch_size * num_queries, 4]
 
@@ -308,12 +308,12 @@ def build_matcher(args):
     #                         cost_giou=args.set_cost_giou, \
     #                         match_ratio=args.hung_match_ratio)
 
-    return None, BoxHungarianMatcher(class_weight=args.box_class_weight,
+    return BoxHungarianMatcher(class_weight=args.box_class_weight,
                                coord_weight=args.box_coord_weight,
                                giou_weight=args.box_giou_weight,
                                focal_alpha=args.focal_alpha,
-                               focal_gamma=args.focal_gamma)
-        # CtrlPointHungarianMatcher(class_weight=args.point_class_weight,
-        #                          coord_weight=args.point_coord_weight,
-        #                          focal_alpha=args.focal_alpha,
-        #                          focal_gamma=args.focal_gamma)
+                               focal_gamma=args.focal_gamma), \
+        CtrlPointHungarianMatcher(class_weight=args.point_class_weight,
+                                 coord_weight=args.point_coord_weight,
+                                 focal_alpha=args.focal_alpha,
+                                 focal_gamma=args.focal_gamma)

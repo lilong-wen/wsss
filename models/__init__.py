@@ -38,15 +38,19 @@ def build_model(args):
     #                }
     weight_dict = {}
     img_weight_dict = {
-        "loss_img_cls": args.loss_img_cls_r,
-        "loss_img_clip": args.loss_img_clip,
+        "loss_char": args.loss_img_cls_r,
+        "loss_clip": args.loss_img_clip,
     }
-    
+    enc_weight_dict = {
+        'loss_bbox': args.loss_enc_bbox,
+        'loss_giou': args.loss_enc_giou,
+        'loss_ce': args.loss_enc_ce
+    }
     dec_weight_dict = {
         'loss_bbox': args.loss_bbox,
         'loss_giou': args.loss_giou,
         'loss_texts': args.loss_texts,
-        'loss_labels': args.loss_ce
+        'loss_ce': args.loss_ce
     }
     if args.aux_loss:
         aux_weight_dict = {}
@@ -56,9 +60,10 @@ def build_model(args):
             )
         aux_weight_dict.update(
             # {k + f'_dec': v for k,v in dec_weight_dict.items()}
-            {k: v for k,v in dec_weight_dict.items()}
+            {k + f'_enc': v for k,v in enc_weight_dict.items()}
         )
         weight_dict.update(aux_weight_dict)
+        weight_dict.update(dec_weight_dict)
         weight_dict.update(img_weight_dict)
 
     #TODO change the loss
@@ -81,7 +86,8 @@ def build_model(args):
         enc_matcher=box_matcher,
         dec_matcher=point_matcher,
         weight_dict=weight_dict,
-        enc_losses=img_losses, 
+        img_losses=img_losses, 
+        enc_losses=enc_losses, 
         dec_losses=dec_losses, 
         num_ctrl_points=args.num_ctrl_points, 
         box_jitter=args.box_jitter,

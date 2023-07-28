@@ -368,7 +368,7 @@ class SetCriterion_with_text(nn.Module):
         2) we supervise each pair of matched ground-truth / prediction (supervise class and box)
     """
 
-    def __init__(self, num_classes, enc_matcher, dec_matcher, weight_dict, enc_losses, \
+    def __init__(self, num_classes, enc_matcher, dec_matcher, weight_dict, img_losses, enc_losses, \
                 dec_losses, num_ctrl_points, box_jitter, focal_alpha=0.25, focal_gamma=2.0):
         """ Create the criterion.
         Parameters:
@@ -380,9 +380,10 @@ class SetCriterion_with_text(nn.Module):
         """
         super().__init__()
         self.num_classes = num_classes
-        # self.enc_matcher = enc_matcher
+        self.enc_matcher = enc_matcher
         self.dec_matcher = dec_matcher
         self.weight_dict = weight_dict
+        self.img_losses = img_losses
         self.enc_losses = enc_losses
         self.dec_losses = dec_losses
         self.focal_alpha = focal_alpha
@@ -618,7 +619,7 @@ class SetCriterion_with_text(nn.Module):
             kwargs = {}
             losses.update(self.get_loss(loss, outputs, targets_cp,
                                         indices, num_inst, **kwargs))
-        for loss_i in self.enc_losses:
+        for loss_i in self.img_losses:
             losses.update(self.get_loss(loss_i, outputs, targets_cp,
                                         indices, num_inst, **kwargs))
 
@@ -637,17 +638,17 @@ class SetCriterion_with_text(nn.Module):
                     losses.update(l_dict)
 
         #TODO enc_outputs may not working, modify the encoder output later
-        # if 'enc_outputs' in outputs:
-        #     enc_outputs = outputs['enc_outputs']
-        #     indices = self.enc_matcher(enc_outputs, targets)
-        #     for loss in self.enc_losses:
-        #         kwargs = {}
-        #         if loss == 'labels':
-        #             kwargs['log'] = False
-        #         l_dict = self.get_loss(
-        #             loss, enc_outputs, targets, indices, num_inst, **kwargs)
-        #         l_dict = {k + f'_enc': v for k, v in l_dict.items()}
-        #         losses.update(l_dict)
+        if 'enc_outputs' in outputs:
+            enc_outputs = outputs['enc_outputs']
+            indices = self.enc_matcher(enc_outputs, targets_cp)
+            for loss in self.enc_losses:
+                kwargs = {}
+                if loss == 'labels':
+                    kwargs['log'] = False
+                l_dict = self.get_loss(
+                    loss, enc_outputs, targets_cp, indices, num_inst, **kwargs)
+                l_dict = {k + f'_enc': v for k, v in l_dict.items()}
+                losses.update(l_dict)
 
         return losses
 

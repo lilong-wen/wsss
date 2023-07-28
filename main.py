@@ -72,10 +72,13 @@ def main(args):
 
     start_epoch = 0
     for epoch in range(start_epoch, args.end_epochs):
+
         if args.distributed:
             data_train.sampler.set_epoch(epoch)
-        train_stats = train_one_epoch(model, criterion, data_train.dataloader, optimizer, \
-                device, epoch, postprocessors, args)
+
+        train_stats = train_one_epoch(model, criterion, \
+                                    data_train.dataloader, optimizer, \
+                                    device, epoch, postprocessors, args)
 
         lr_scheduler.step()
 

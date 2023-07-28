@@ -19,11 +19,14 @@ def get_args_parser():
     parser.add_argument('--device', default="cuda", type=str)
 
     #weight dict
-    parser.add_argument('--loss_ce', default=2.0, type=float)
     parser.add_argument('--loss_ctrl_points', default=5.0, type=float)
     parser.add_argument('--loss_texts', default=2.0, type=float)
     parser.add_argument('--loss_bbox', default=5.0, type=float)
+    parser.add_argument('--loss_ce', default=2.0, type=float)
     parser.add_argument('--loss_giou', default=2.0, type=float)
+    parser.add_argument('--loss_enc_bbox', default=5.0, type=float)
+    parser.add_argument('--loss_enc_ce', default=2.0, type=float)
+    parser.add_argument('--loss_enc_giou', default=2.0, type=float)
     parser.add_argument('--aux_loss', default=True, type=bool)
     parser.add_argument('--box_jitter', default=0.1, type=float)
     parser.add_argument('--loss_img_cls_r', default=1.0, type=float)
