@@ -58,6 +58,18 @@ class SetCriterion(nn.Module):
 
         return losses
 
+    def loss_img_label(self, outputs, targets, *args, **kwargs):
+        """Multi-Label Image Classification loss"""
+        assert 'x_logits' in outputs and 'x_cls_logits' in outputs
+        logits = outputs['x_logits']
+        tokens_logits = outputs['x_cls_logits']
+        target_class = torch.stack([t["img_label"] for t in targets]).to(logits.get_device()).float()
+        loss_label = F.binary_cross_entropy_with_logits(logits, target_class)
+        loss_label_tokens = F.binary_cross_entropy_with_logits(tokens_logits, target_class)
+        losses = {"img_label_logits": loss_label, "img_label_logits_tokens": loss_label_tokens}
+
+        return losses
+
     def loss_labels(self, outputs, targets, indices, num_boxes, log=True):
         """Classification loss (Binary focal loss)
         targets dicts must contain the key "labels" containing a tensor of dim [nb_target_boxes]
@@ -142,6 +154,46 @@ class SetCriterion(nn.Module):
         losses['loss_giou'] = loss_giou.sum() / num_boxes
         return losses
 
+    def loss_img_labels(self, outputs, targets):
+        assert 'x_logits_r' in outputs and 'x_logits_s' in outputs and 'x_logits_e' in outputs
+        assert 'chars' in targets
+        # b_c, _, _ = outputs['x_logits'].shape
+        # char_logit_r, char_logit_s, char_logit_e = torch.split(outputs['x_logits'], b_c)
+        masked_chars = torch.stack([item['chars'] for item in targets])
+        # masked_chars_r, masked_chars_s, masked_chars_e = torch.split(masked_chars, b_c)
+
+        indices = torch.where(masked_chars != 0)
+        char_gts = masked_chars[indices]
+        chars_logit = outputs['x_logits'][indices]
+
+        loss_char = F.cross_entropy(chars_logit, char_gts)
+
+        losses = {"loss_char": loss_char}
+
+        return losses
+
+    def loss_img_clip(self, outputs, targets):
+        
+        assert 'img_feature' in outputs and 'text_feature' in outputs
+
+        b_c, _, _ = outputs['x_logits'].shape
+        text_feature_r, text_feature_s, text_feature_e = torch.split(outputs['text_features'], b_c)
+        # assign the average value of text_feature_r, text_feature_s, text_feature_e to text_features
+        text_features = (text_feature_r + text_feature_s + text_feature_e) / 3
+
+        logits_per_image = outputs['logit_scale'] * outputs['img_feature_s'] @ text_features.t()
+        logits_per_text = outputs['logit_scale'] * text_features.t() @ outputs['img_feature_s']
+
+
+        ground_truth = torch.arange(len(logits_per_image)).long()
+        
+        loss_clip = (F.cross_entropy(logits_per_image, ground_truth) + \
+                    F.cross_entropy(logits_per_text, ground_truth)) /2
+        
+        losses = {"loss_clip": loss_clip}
+
+        return losses
+        
 
     def loss_drloc(self, outputs, *args, **kwargs):
         # try:
@@ -171,7 +223,11 @@ class SetCriterion(nn.Module):
             'cardinality': self.loss_cardinality,
             'boxes': self.loss_boxes,
             'masks': self.loss_masks,
-            'image_label': self.loss_img_label,
+            # 'image_label': self.loss_img_label,
+            'img_cls_r': self.loss_img_label,
+            'img_cls_s': self.loss_img_label,
+            'img_cls_e': self.loss_img_label,
+            'img_clip': self.loss_img_clip,
             'drloc': self.loss_drloc,
         }
         assert loss in loss_map, f'do you really want to compute {loss} loss?'
@@ -239,6 +295,7 @@ class SetCriterion(nn.Module):
         losses = {}
         for loss in self.losses:
             losses.update(self.get_loss(loss, outputs, targets_cp, indices, num_boxes))
+
         # In case of auxiliary losses, we repeat this process with the output of each intermediate layer.
         if 'aux_outputs' in outputs:
             for i, aux_outputs in enumerate(outputs['aux_outputs']):
@@ -412,6 +469,45 @@ class SetCriterion_with_text(nn.Module):
         target_texts = torch.cat([t['texts'][i] for t, (_, i) in zip(targets, indices)], dim=0)
         return {'loss_texts': F.cross_entropy(src_texts.transpose(1, 2), target_texts.long())}
 
+    def loss_img_labels(self, outputs, targets, indices_a=None, num_inst=None):
+        assert 'x_logits' in outputs
+        assert 'chars' in targets[0]
+        # b_c, _, _ = outputs['x_logits'].shape
+        # char_logit_r, char_logit_s, char_logit_e = torch.split(outputs['x_logits'], b_c)
+        masked_chars = torch.vstack([item['chars'] for item in targets])
+        # masked_chars_r, masked_chars_s, masked_chars_e = torch.split(masked_chars, b_c)
+
+        indices = torch.where(masked_chars != 0)
+        char_gts = masked_chars[indices]
+        chars_logit = outputs['x_logits'][indices]
+
+        loss_char = F.cross_entropy(chars_logit, char_gts)
+
+        losses = {"loss_char": loss_char}
+
+        return losses
+
+    def loss_img_clip(self, outputs, targets, indices, num_inst, **kwargs):
+        
+        assert 'img_feature_s' in outputs and 'text_features' in outputs
+
+        b_c, _ = outputs['img_feature_s'].shape
+        text_feature_r, text_feature_s, text_feature_e = torch.split(outputs['text_features'], b_c)
+        # assign the average value of text_feature_r, text_feature_s, text_feature_e to text_features
+        text_features = (text_feature_r + text_feature_s + text_feature_e) / 3
+
+        logits_per_image = outputs['logit_scale'] * outputs['img_feature_s'] @ text_features.t()
+        logits_per_text = outputs['logit_scale'] * text_features @ outputs['img_feature_s'].t()
+
+
+        ground_truth = torch.arange(len(logits_per_image)).long().to(logits_per_image.device)
+        
+        loss_clip = (F.cross_entropy(logits_per_image, ground_truth) + \
+                    F.cross_entropy(logits_per_text, ground_truth)) /2
+        
+        losses = {"loss_clip": loss_clip}
+
+        return losses
 
     def loss_ctrl_points(self, outputs, targets, indices, num_inst):
         """Compute the losses related to the keypoint coordinates, the L1 regression loss
@@ -463,6 +559,8 @@ class SetCriterion_with_text(nn.Module):
             'ctrl_points': self.loss_ctrl_points,
             'boxes': self.loss_boxes,
             'texts': self.loss_texts,
+            'img_cls': self.loss_img_labels,
+            'img_clip': self.loss_img_clip,
         }
         assert loss in loss_map, f'do you really want to compute {loss} loss?'
         return loss_map[loss](outputs, targets, indices, num_inst, **kwargs)
@@ -519,6 +617,9 @@ class SetCriterion_with_text(nn.Module):
         for loss in self.dec_losses:
             kwargs = {}
             losses.update(self.get_loss(loss, outputs, targets_cp,
+                                        indices, num_inst, **kwargs))
+        for loss_i in self.enc_losses:
+            losses.update(self.get_loss(loss_i, outputs, targets_cp,
                                         indices, num_inst, **kwargs))
 
         # In case of auxiliary losses, we repeat this process with the output of each intermediate layer.

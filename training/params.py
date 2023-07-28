@@ -22,11 +22,14 @@ def get_args_parser():
     parser.add_argument('--loss_ce', default=2.0, type=float)
     parser.add_argument('--loss_ctrl_points', default=5.0, type=float)
     parser.add_argument('--loss_texts', default=2.0, type=float)
-    parser.add_argument('--clip_loss', default=1.0, type=float)
     parser.add_argument('--loss_bbox', default=5.0, type=float)
     parser.add_argument('--loss_giou', default=2.0, type=float)
     parser.add_argument('--aux_loss', default=True, type=bool)
     parser.add_argument('--box_jitter', default=0.1, type=float)
+    parser.add_argument('--loss_img_cls_r', default=1.0, type=float)
+    parser.add_argument('--loss_img_cls_s', default=1.0, type=float)
+    parser.add_argument('--loss_img_cls_e', default=1.0, type=float)
+    parser.add_argument('--loss_img_clip', default=1.0, type=float)
 
 
     #dist

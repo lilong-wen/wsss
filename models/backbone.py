@@ -439,8 +439,8 @@ class oCLIP(nn.Module):
         char_mask_r, char_mask_s, char_mask_e = torch.split(char_mask, m_c)
         char_mask_w = torch.max(torch.max(char_mask_r, char_mask_s), char_mask_e)
 
-        text_image_enc_r, text_image_enc_s, text_image_e = torch.split(text_image_enc, m_c)
-        text_logits = self.text_class(text_image_enc_r)
+        # text_image_enc_r, text_image_enc_s, text_image_e = torch.split(text_image_enc, m_c)
+        text_logits = self.text_class(text_image_enc)
 
         # if self.training:
             # return image_features, text_features, text_logits, logit_scale
@@ -448,9 +448,11 @@ class oCLIP(nn.Module):
             # return image_features, text_features, text_logits, att_maps, char_mask, logit_scale    
 
         return {'x_logits': text_logits, 
+                'logit_scale': logit_scale,
                 'cam_cls': char_mask_r.unflatten(-1, (m_h, m_w)),
                 'cam_word': char_mask_w.unflatten(-1, (m_h, m_w)),
                 'img_feature': multi_features, 
+                'img_feature_s': image_features,
                 'text_features': text_features}
 
 

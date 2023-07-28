@@ -37,12 +37,16 @@ def build_model(args):
     #                'loss_texts': args.loss_texts,
     #                }
     weight_dict = {}
+    img_weight_dict = {
+        "loss_img_cls": args.loss_img_cls_r,
+        "loss_img_clip": args.loss_img_clip,
+    }
     
     dec_weight_dict = {
         'loss_bbox': args.loss_bbox,
         'loss_giou': args.loss_giou,
         'loss_texts': args.loss_texts,
-        'loss_ce': args.loss_ce
+        'loss_labels': args.loss_ce
     }
     if args.aux_loss:
         aux_weight_dict = {}
@@ -55,12 +59,14 @@ def build_model(args):
             {k: v for k,v in dec_weight_dict.items()}
         )
         weight_dict.update(aux_weight_dict)
+        weight_dict.update(img_weight_dict)
 
     #TODO change the loss
     losses = ['char', 'clip', 'boxes', 'match']
     enc_losses = ['labels', 'boxes']
     # dec_losses = ['labels', 'ctrl_points', 'texts']
     dec_losses = ['labels', 'boxes', 'texts']
+    img_losses = ['img_cls', 'img_clip']
 
 
     # criterion = SetCriterion(num_classes=args.num_classes,
@@ -75,7 +81,7 @@ def build_model(args):
         enc_matcher=box_matcher,
         dec_matcher=point_matcher,
         weight_dict=weight_dict,
-        enc_losses=enc_losses, 
+        enc_losses=img_losses, 
         dec_losses=dec_losses, 
         num_ctrl_points=args.num_ctrl_points, 
         box_jitter=args.box_jitter,
